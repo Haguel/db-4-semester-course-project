@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
-    category_name VARCHAR(50) NOT NULL
+    name VARCHAR(50) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS publishers (
@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS branches (
 
 CREATE TABLE IF NOT EXISTS authors (
     id SERIAL PRIMARY KEY,
-    full_name VARCHAR(200) NOT NULL,
+    name VARCHAR(200) NOT NULL,
+    surname VARCHAR(200) NOT NULL,
     bio TEXT
 );
 
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS staff (
     name VARCHAR(200) NOT NULL,
     surname VARCHAR(200) NOT NULL,
     date_of_birth DATE NOT NULL,
+    phone VARCHAR(20) NOT NULL,
     login VARCHAR(50) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL
 );
@@ -65,11 +67,13 @@ CREATE TABLE IF NOT EXISTS loans (
     id SERIAL PRIMARY KEY,
     book_id INT NOT NULL,
     borrower_id INT NOT NULL,
+    who_borrowed_id INT NOT NULL,
     date_loaned DATE NOT NULL DEFAULT CURRENT_DATE,
     due_date DATE NOT NULL,
     date_returned DATE,
     FOREIGN KEY (book_id) REFERENCES books(id),
-    FOREIGN KEY (borrower_id) REFERENCES borrowers(id)
+    FOREIGN KEY (borrower_id) REFERENCES borrowers(id),
+    FOREIGN KEY (who_borrowed_id) REFERENCES staff(id)
 );
 
 CREATE TABLE IF NOT EXISTS reservations (
