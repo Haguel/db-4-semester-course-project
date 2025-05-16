@@ -148,6 +148,9 @@ public class ScriptRunner {
 
                     try {
                         System.out.println("Executing statement " + (i + 1) + " of " + statements.size());
+                        // Debug: Print first 50 chars of statement
+                        System.out.println("Statement preview: " +
+                                (statement.length() > 50 ? statement.substring(0, 50) + "..." : statement));
                         boolean isResultSet = stmt.execute(statement);
                         if (isResultSet) {
                             try (ResultSet rs = stmt.getResultSet()) {
@@ -168,7 +171,7 @@ public class ScriptRunner {
                 }
             }
         } catch (SQLException e) {
-            System.out.println("Error reading script: " + e.getMessage());
+            System.out.println("Database error: " + e.getMessage());
         }
     }
 
@@ -180,60 +183,79 @@ public class ScriptRunner {
         boolean inDoubleQuote = false;
         boolean inDollarQuote = false;
         String dollarTag = null;
-        boolean inComment = false;
+        boolean inLineComment = false;
 
         for (int i = 0; i < script.length(); i++) {
             char c = script.charAt(i);
 
-            // Handle comments
+            // Handle line comments (-- until newline)
             if (!inSingleQuote && !inDoubleQuote && !inDollarQuote) {
                 if (i + 1 < script.length() && c == '-' && script.charAt(i + 1) == '-') {
-                    inComment = true;
+                    inLineComment = true;
                     i++; // Skip next '-'
                     continue;
-                } else if (inComment && c == '\n') {
-                    inComment = false;
+                } else if (inLineComment && c == '\n') {
+                    inLineComment = false;
                     continue;
                 }
             }
-            if (inComment) {
+            if (inLineComment) {
                 continue;
             }
 
             currentStatement.append(c);
 
+            // Handle quotes
             if (c == '\'' && !inDoubleQuote && !inDollarQuote) {
                 inSingleQuote = !inSingleQuote;
             } else if (c == '"' && !inSingleQuote && !inDollarQuote) {
                 inDoubleQuote = !inDoubleQuote;
             } else if (c == '$' && !inSingleQuote && !inDoubleQuote) {
-                int nextDollar = i + 1 < script.length() && script.charAt(i + 1) == '$' ? i + 1 : script.indexOf('$', i + 1);
-                if (nextDollar != -1) {
-                    String potentialTag = i + 1 == nextDollar ? "" : script.substring(i + 1, nextDollar);
-                    if (inDollarQuote) {
-                        if (potentialTag.equals(dollarTag)) {
-                            inDollarQuote = false;
-                            dollarTag = null;
-                            i = nextDollar;
-                        }
-                    } else {
-                        inDollarQuote = true;
-                        dollarTag = potentialTag;
-                        i = nextDollar;
+                // Look for the closing '$' of the tag
+                int nextDollar = script.indexOf('$', i + 1);
+                if (nextDollar == -1) {
+                    // No closing '$', treat as regular character
+                    continue;
+                }
+
+                // Extract tag (empty for $$ or named like $func$)
+                String potentialTag = (nextDollar == i + 1) ? "" : script.substring(i + 1, nextDollar);
+                if (inDollarQuote) {
+                    // Check for closing tag
+                    if (potentialTag.equals(dollarTag)) {
+                        inDollarQuote = false;
+                        dollarTag = null;
+                        i = nextDollar; // Move to closing '$'
+                        currentStatement.append(script.charAt(i)); // Append closing '$'
                     }
+                } else {
+                    // Start new dollar-quoted section
+                    inDollarQuote = true;
+                    dollarTag = potentialTag;
+                    i = nextDollar; // Move to closing '$' of opening tag
+                    currentStatement.append(script.charAt(i)); // Append closing '$'
                 }
             } else if (c == ';' && !inSingleQuote && !inDoubleQuote && !inDollarQuote) {
-                statements.add(currentStatement.toString().trim());
+                String statement = currentStatement.toString().trim();
+                if (!statement.isEmpty()) {
+                    statements.add(statement);
+                }
                 currentStatement.setLength(0);
             }
         }
 
         // Add the last statement if it exists
-        if (currentStatement.length() > 0) {
-            String lastStatement = currentStatement.toString().trim();
-            if (!lastStatement.isEmpty()) {
-                statements.add(lastStatement);
-            }
+        String lastStatement = currentStatement.toString().trim();
+        if (!lastStatement.isEmpty()) {
+            statements.add(lastStatement);
+        }
+
+        // Debug: Print all parsed statements
+        System.out.println("Parsed statements:");
+        for (int j = 0; j < statements.size(); j++) {
+            String preview = statements.get(j).length() > 50 ?
+                    statements.get(j).substring(0, 50) + "..." : statements.get(j);
+            System.out.println("Statement " + (j + 1) + ": " + preview);
         }
 
         return statements;
